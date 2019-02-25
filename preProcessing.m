@@ -28,29 +28,31 @@ for i = 1 : length(dirlist)
       face = rgb2gray(face); % change to gray
       BBOX = myFaceDetector(face);
       numFacesFound = size(BBOX, 1);
+      
       fprintf(1, 'Found %d faces\n', numFacesFound);
-% %   B = insertObjectAnnotation(face,'rectangle',BBOX,'Face');
-% %   figure; imshow(B);
-%   if ~isempty(BBOX)  
-%       
-%         for i = 1:numFacesFound
-%             face_crop = imcrop(face, BBOX(i, :));
-%             figure;
-%             imshow(face_crop);
-%         end
-%     
-%         [~ , fname, ext ] = fileparts(baseFileName);
-% 
-%         newfName = strcat(fname, '_crop.jpg');
-%         fprintf(1, 'Saving new img %s\n', newfName);
-% %         imwrite(face_crop, newfName);   
-%   end
+      B = insertObjectAnnotation(face,'rectangle',BBOX,'Face');
+      figure; imshow(B);
+      
+      if ~isempty(BBOX)  
+
+            for j = 1:numFacesFound
+                face_crop = imcrop(face, BBOX(j, :));
+                figure;
+                imshow(face_crop);
+  
+                [~ , fname, ext ] = fileparts(baseFileName);
+
+                newfName = strcat(fname, '_crop.jpg');
+                fprintf(1, 'Saving new img %s\n', newfName);
+                imwrite(face_crop, newfName);
+            end
+      end
   
   
   end
 
-  %% return to main dir
-  cd(maindir);  
+
+  cd(maindir); % return to main dir  
   
   
   
