@@ -3,3 +3,5 @@ preProcessing.m~
 /imgs
 /zipfiles
 *.jpeg
+.ipnyb_checkpoints/
+.ipynb_checkpoints/
