@@ -6,15 +6,20 @@ This is a temporary script file.
 """
 #%% load libraries
 
-from imutils import paths
+
 import imutils
+from imutils import paths
 import cv2
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-import numpy
+import numpy as np
 import sys
 import os
 import random 
+import operator
+from functools import reduce
+from sklearn.cluster import MiniBatchKMeans
+
 
 #%% Global Vars
 
@@ -26,6 +31,8 @@ f = "IMG_20190128_201734.jpg"
 g = "IMG_20190128_201734.mp4"
 
 VID_SAMPLE = 3
+NUM_CLASSES = 3
+IMG_EXTS = ['.jpg', '.jpeg']
 
 #%% Helper Functions
 
@@ -63,29 +70,22 @@ def getSIFTfeatures(gray_img):
     sift = cv2.xfeatures2d.SIFT_create()
     kp, desc = sift.detectAndCompute(gray_img, None)
     return kp, desc
-
-#%% Create Sub Directories for cropped photos
-
-#people = os.listdir(src_path)
-
-#for person in people:
-#    dst_dir = os.path.join(dst_path, person)
-#    if not os.path.exists(dst_dir):
-#        os.mkdir(dst_dir)
-#    
+    
 #%% Process each folder    
+
+people = os.listdir(src_path)    
     
 for person in people:
     
+    print("Processing Sub Dir", person)
     person_dir = os.path.join(src_path, person)
     cropped_dir = os.path.join(dst_path, person)
-    jpgs = list(filter(lambda x: x.endswith('.jpg'), os.listdir(person_dir)))
+    jpgs = list(filter(lambda x: x.endswith(tuple(IMG_EXTS)), os.listdir(person_dir)))
     vids = list(filter(lambda x: x.endswith('.mp4'), os.listdir(person_dir)))
 
     ## Save cropped images
     crop_shots = []
 
-    
         
     #%% read  crop image file
     for pic in jpgs:
@@ -104,92 +104,50 @@ for person in people:
             sys.exit('Cap Not Open')
             
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        print("# Frames: ", total_frames)
-
         frames_to_sample = random.sample(range(1, total_frames), VID_SAMPLE)
+        print("Sampling", frames_to_sample,"of", total_frames, "frames")
+        
         
         for fr in frames_to_sample:
+            
             cap.set(1, fr)
             hasframe, frame = cap.read()
             if not hasframe: 
-                print("No Frame")
+                print("Frame Not Found, Loop  until a frame is found")
                 continue;
             crop_shots += detectFaceAndCrop(frame)
             
         cap.release
-                   
-#        while(cap.isOpened):
-#            
-#           
-#            hasframe, frame = cap.read()
-#             
-#            if not hasframe:
-#                print("No Frame ")
-#                break;
-#            
-#            detectFace(frame)
-#        
-#        
-#        cap.release()
+        
+        
+    #%% get SIFT Features
+        
+    sift_descriptors = {}
+    
+    for i in range(1, len(crop_shots)):
+        kp, desc = getSIFTfeatures(crop_shots[i])
+        sift_descriptors[i] = desc
+#    for pic in crop_shots:
+#        kp, desc = getSIFTfeatures(pic)
+#        sift_descriptors.extend(desc)
+            
+        
+    #%% Train KMeans
+    
+    des = list(sift_descriptors.values())
+    sift_desc_matrix = reduce(lambda x,y: np.concatenate((x,y)), des)
+                        
+    k = NUM_CLASSES * 10
+    batch_size = len(crop_shots) * 3
+    kmeans = MiniBatchKMeans(n_clusters=k, batch_size=batch_size, verbose=1).fit(sift_desc_matrix)
+    
+    
+    #%% Generate
 
 
 
-#%% Check SIFT Features
-#        
-#img = cv2.imread(f)
-##gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-#crop_list = []
-#faces = face_detector.detectMultiScale(img, 1.3, 5)
-#for face_box in faces:
-#    (x,y,w,h) = increaseBBOX(face_box, 10)
-#    facecrop = img[y:y+h, x:x+w]
-#    crop_list.append(facecrop)
-#    
-##cv2.imshow('i', crop_list[0]) 
-##cv2.waitKey(0) 
-##cv2.destroyAllWindows()
-#
-#sift = cv2.xfeatures2d.SIFT_create()
-#gray = cv2.cvtColor(crop_list[0], cv2.COLOR_BGR2GRAY)
-#kp, desc = sift.detectAndCompute(gray, None)
-#kp_img = cv2.drawKeypoints(gray, kp, crop_list[0].copy())
-#cv2.imshow('i', kp_img) 
-#cv2.waitKey(0) 
-#cv2.destroyAllWindows()
-#
-#
-##%% Matplotlib 
-#        
-#        
-#        
-#        
-#
-#image = mpimg.imread( f)
-#plt.imshow(image)
-##plt.show()'
-#
-##%% 
-#
-#
-#
-#
-#def show_sift_features(gray_img, color_img, kp):
-#    cv2.namedWindow("img", cv2.WINDOW_NORMAL)  
-#    cv2.resizeWindow('img', 600,600)
-#    kp_img = cv2.drawKeypoints(gray_img, kp, color_img.copy())
-#    cv2.imshow('img', kp_img)
-#    cv2.waitKey(0)
-#        
-#    return
-#
-## generate SIFT keypoints and descriptors
-#octo_front_kp, octo_front_desc = gen_sift_features(octo_front_gray)
-#octo_offset_kp, octo_offset_desc = gen_sift_features(octo_offset_gray)
-#
-#print 'Here are what our SIFT features look like for the front-view octopus image:'
-#show_sift_features(octo_front_gray, octo_front, octo_front_kp);
-#        
 #        
 ###sources used : https://ianlondon.github.io/blog/how-to-sift-opencv/
+# https://www.kaggle.com/pierre54/bag-of-words-model-with-sift-descriptors/notebook
 
 
