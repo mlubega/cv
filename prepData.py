@@ -19,6 +19,8 @@ import random
 import operator
 from functools import reduce
 from sklearn.cluster import MiniBatchKMeans
+from sklearn.neural_network import MLPClassifier
+from sklearn import svm
 
 
 #%% Global Vars
@@ -30,9 +32,12 @@ dst_path = '/home/aries/ds_course/term2/compv/coursework/cropped/'
 f = "IMG_20190128_201734.jpg"
 g = "IMG_20190128_201734.mp4"
 
+RAND_COUNT = 10
 VID_SAMPLE = 3
 NUM_CLASSES = 3
 IMG_EXTS = ['.jpg', '.jpeg']
+VID_EXTS = ['.mp4', '.mov']
+K = NUM_CLASSES * 10
 
 #%% Helper Functions
 
@@ -53,7 +58,7 @@ def detectFaceAndCrop(img):
     cropped_faces = []
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     faces = face_detector.detectMultiScale(gray, 1.3, 5)
-    print('Found', len(faces), 'faces to crop')
+    #print('Found', len(faces), 'faces to crop')
     for face_box in faces:     
         (x,y,w,h) = increaseBBOX(face_box, 10) 
         crop = img[y:y+h, x:x+w]
@@ -70,10 +75,18 @@ def getSIFTfeatures(gray_img):
     sift = cv2.xfeatures2d.SIFT_create()
     kp, desc = sift.detectAndCompute(gray_img, None)
     return kp, desc
-    
+
+#%% Final Feature Vectors
+
+feature_vec = []
+label_vec = []    
+
+
 #%% Process each folder    
 
 people = os.listdir(src_path)    
+
+
     
 for person in people:
     
@@ -81,7 +94,7 @@ for person in people:
     person_dir = os.path.join(src_path, person)
     cropped_dir = os.path.join(dst_path, person)
     jpgs = list(filter(lambda x: x.endswith(tuple(IMG_EXTS)), os.listdir(person_dir)))
-    vids = list(filter(lambda x: x.endswith('.mp4'), os.listdir(person_dir)))
+    vids = list(filter(lambda x: x.endswith(tuple(VID_EXTS)), os.listdir(person_dir)))
 
     ## Save cropped images
     crop_shots = []
@@ -91,10 +104,9 @@ for person in people:
     for pic in jpgs:
         img = cv2.imread(os.path.join(src_path, person, pic))
         crop_shots += detectFaceAndCrop(img)
-            
-        #cv2.namedWindow("img", cv2.WINDOW_NORMAL)  
-        #cv2.resizeWindow('img', 600,600)
         
+        
+    print(len(crop_shots), "cropped images from from images")
     #%% read and crop video files
     for vid in vids:
 
@@ -104,19 +116,27 @@ for person in people:
             sys.exit('Cap Not Open')
             
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        frames_to_sample = random.sample(range(1, total_frames), VID_SAMPLE)
+        frames_to_sample = random.sample(range(1, total_frames), RAND_COUNT)
         print("Sampling", frames_to_sample,"of", total_frames, "frames")
         
         
+        crops_taken = 0
         for fr in frames_to_sample:
-            
             cap.set(1, fr)
             hasframe, frame = cap.read()
             if not hasframe: 
-                print("Frame Not Found, Loop  until a frame is found")
+                #print("Frame Not Found, loop  until a frame is found")
                 continue;
-            crop_shots += detectFaceAndCrop(frame)
+            shots = detectFaceAndCrop(frame)
+            if not shots:
+                #print("Crop Not Taken, loop  until a crop is found")
+                continue;
+            crop_shots += shots
+            crops_taken += len(shots)
+            if crops_taken == VID_SAMPLE:
+                break;
             
+        print(crops_taken, "cropped images found from video")
         cap.release
         
         
@@ -127,27 +147,74 @@ for person in people:
     for i in range(1, len(crop_shots)):
         kp, desc = getSIFTfeatures(crop_shots[i])
         sift_descriptors[i] = desc
-#    for pic in crop_shots:
-#        kp, desc = getSIFTfeatures(pic)
-#        sift_descriptors.extend(desc)
-            
+
         
     #%% Train KMeans
     
     des = list(sift_descriptors.values())
     sift_desc_matrix = reduce(lambda x,y: np.concatenate((x,y)), des)
-                        
-    k = NUM_CLASSES * 10
-    batch_size = len(crop_shots) * 3
-    kmeans = MiniBatchKMeans(n_clusters=k, batch_size=batch_size, verbose=1).fit(sift_desc_matrix)
+
+    batch_size = len(crop_shots) * 3  # What's a good metric to determine this number? 
+    kmeans = MiniBatchKMeans(n_clusters=K, batch_size=batch_size, verbose=0).fit(sift_desc_matrix)
+    print("Finished K-Means")
     
     
-    #%% Generate
+    #%% Generate Histogram
+    
+    for i, desc in sift_descriptors.items(): 
+        preds = kmeans.predict(desc)
+        hist, bin_edges=np.histogram(preds, bins=range(1, K)) # Normalize by number of keypoints?? 
+        feature_vec.append(hist)
+        label_vec.append(person)
+        
+        
+        
+        
+        
+            
+#%% Train SVM
+ 
+print("Training SVM")
+svmModel = svm.SVC()
+svmModel.fit(feature_vec, label_vec)
 
 
+#%% Train MLP
 
-#        
-###sources used : https://ianlondon.github.io/blog/how-to-sift-opencv/
+print("Training MLP")
+mlp = MLPClassifier(verbose=True, max_iter=6000)
+mlp.fit(feature_vec, label_vec)
+
+# Testing the MOV files issues ---- 
+# =============================================================================
+# mov_file = "IMG_3545.mov"
+# cap = cv2.VideoCapture(os.path.join(src_path,'3', mov_file))
+# if not cap.isOpened:
+#     sys.exit('Cap Not Open')
+#         
+# while(cap.isOpened):
+#     hasframe, frame = cap.read()
+#     if not hasframe: 
+#         print("Frame Not Found")
+#         break;
+#     
+#     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+#     faces = face_detector.detectMultiScale(gray, 1.3, 5)
+#     for (x,y,w,h) in faces:     
+#         cv2.rectangle(frame, (x,y), (x+w,y+h), (255,0,0), 2)   
+#         cv2.imshow('img', frame)
+#         cv2.waitKey(5)
+# 
+# 
+# cv2.destroyAllWindows()
+# =============================================================================
+     
+# =============================================================================
+# sources consulted : 
+#
+# https://ianlondon.github.io/blog/how-to-sift-opencv/
 # https://www.kaggle.com/pierre54/bag-of-words-model-with-sift-descriptors/notebook
+# https://stackoverflow.com/questions/51168896/bag-of-visual-words-implementation-in-python-is-giving-terrible-accuracy
+# =============================================================================
 
 
