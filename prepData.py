@@ -72,8 +72,35 @@ def detectFaceAndCrop(img):
     return cropped_faces
 
 def getSIFTfeatures(gray_img):
-    sift = cv2.xfeatures2d.SIFT_create()
+    sift = cv2.xfeatures2d.SIFT_create() #What threshold?
     kp, desc = sift.detectAndCompute(gray_img, None)
+    return kp, desc
+
+def getSURFfeatures(gray_img):  
+    surf = cv2.xfeatures2d.SURF_create() #what threshold?
+    #surf.setExtended(True)  --> to expand to 128 dim.
+    kp, desc = surf.detectAndCompute(gray_img, None)
+    return kp, desc
+
+
+def getBRIEFfeatures(gray_img):
+    # Initiate FAST detector
+    star = cv2.xfeatures2d.StarDetector_create()
+    # Initiate BRIEF extractor
+    brief = cv2.xfeatures2d.BriefDescriptorExtractor_create()
+    # find the keypoints with STAR
+    kp = star.detect(gray_img, None)
+    # compute the descriptors with BRIEF
+    kp, desc = brief.compute(gray_img, kp)
+    return kp, desc
+
+def getORBfeatures(gray_img):
+    # Initiate ORB detector
+    orb = cv2.ORB_create()
+    # find the keypoints with ORB
+    kp = orb.detect(gray_img,None)
+    # compute the descriptors with ORB
+    kp, desc = orb.compute(gray_img, kp)
     return kp, desc
 
 #%% Final Feature Vectors
@@ -85,8 +112,6 @@ label_vec = []
 #%% Process each folder    
 
 people = os.listdir(src_path)    
-
-
     
 for person in people:
     
@@ -167,10 +192,6 @@ for person in people:
         feature_vec.append(hist)
         label_vec.append(person)
         
-        
-        
-        
-        
             
 #%% Train SVM
  
@@ -212,6 +233,8 @@ mlp.fit(feature_vec, label_vec)
 # =============================================================================
 # sources consulted : 
 #
+# https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_feature2d/py_orb/py_orb.html
+# https://docs.opencv.org/3.4/df/dd2/tutorial_py_surf_intro.html
 # https://ianlondon.github.io/blog/how-to-sift-opencv/
 # https://www.kaggle.com/pierre54/bag-of-words-model-with-sift-descriptors/notebook
 # https://stackoverflow.com/questions/51168896/bag-of-visual-words-implementation-in-python-is-giving-terrible-accuracy
