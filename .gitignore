@@ -5,3 +5,6 @@ preProcessing.m~
 *.jpeg
 .ipnyb_checkpoints/
 .ipynb_checkpoints/
+cropped/
+IMG_20190128_201734.jpg
+IMG_20190128_201734.mp4
