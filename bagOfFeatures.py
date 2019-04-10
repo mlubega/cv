@@ -6,21 +6,14 @@ This is a temporary script file.
 """
 #%% load libraries
 
-
-import imutils
-from imutils import paths
 import cv2
-import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
 import numpy as np
-import sys
 import os
-import random 
-import operator
 from functools import reduce
 from sklearn.cluster import MiniBatchKMeans
 from sklearn.neural_network import MLPClassifier
 from sklearn import svm
+from sklearn.metrics import confusion_matrix 
 
 
 #%% Global Vars
@@ -86,9 +79,10 @@ def generateHistograms(descriptors):
     desc_matrix = reduce(lambda x,y: np.concatenate((x,y)), des)
 
     # Train KMeans
+    initial_size = 3 * K
     batch_size = len(descriptors.keys()) * 3  # What's a good metric to determine this number? 
-    kmeans = MiniBatchKMeans(n_clusters=K, batch_size=batch_size, verbose=0).fit(desc_matrix)
-    print("Finished K-Means")
+    kmeans = MiniBatchKMeans(n_clusters=K, batch_size=batch_size, init_size=initial_size, verbose=0).fit(desc_matrix)
+    #print("Finished K-Means")
     
     ## Generate Histogram 
     histograms = []
@@ -102,48 +96,110 @@ def generateHistograms(descriptors):
 
 #%% Final Feature Vectors
 
-sift_feature_vec = [[], []]   
+sift_train_feature_vec = [[], []]   
+sift_test_feature_vec = [[], []]   
 
+surf_train_feature_vec = [[], []]   
+surf_test_feature_vec = [[], []]   
+
+orb_train_feature_vec = [[], []]   
+orb_test_feature_vec = [[], []]   
 
 #%% Process each folder    
 
+print("Training Data")
 people = os.listdir(TRAIN_DATA)    
     
 for person in people:
     
     print("Processing Sub Dir", person)
     
+    #TRAIN DATA
+    
+    #read in cropped data
     crop_names = os.listdir(os.path.join(TRAIN_DATA, person))
-    crop_names = list(map(lambda x: os.path.join(TRAIN_DATA, person, x), crop_names))
-    
-    crops = []
-    
+    crop_names = list(map(lambda x: os.path.join(TRAIN_DATA, person, x), crop_names)) 
     crops = [cv2.imread(x , cv2.IMREAD_GRAYSCALE) for x in crop_names ]
     
         
     # get SIFT Features
     sift_desc = extractFeatures(crops, getSIFTfeatures)
-    print("Extracted SIFT")
     sift_histograms = generateHistograms(sift_desc)
-    sift_feature_vec[0].extend(sift_histograms)
-    sift_feature_vec[1].extend([person] * len(sift_histograms))
+    sift_train_feature_vec[0].extend(sift_histograms)
+    sift_train_feature_vec[1].extend([person] * len(sift_histograms))
     
+    # get SURF Features
+    surf_desc = extractFeatures(crops, getSURFfeatures)
+    surf_histograms = generateHistograms(surf_desc)
+    surf_train_feature_vec[0].extend(surf_histograms)
+    surf_train_feature_vec[1].extend([person] * len(surf_histograms))
+    
+    
+    # get ORB Features
+    orb_desc = extractFeatures(crops, getORBfeatures)
+    orb_histograms = generateHistograms(orb_desc)
+    orb_train_feature_vec[0].extend(orb_histograms)
+    orb_train_feature_vec[1].extend([person] * len(orb_histograms))
+    
+    
+    
+print("Test Data")
+people = os.listdir(TEST_DATA) 
+
+for person in people:
+    #TEST DATA
+    
+    print("Processing Sub Dir", person)
+    
+    #read in cropped data
+    crop_names = os.listdir(os.path.join(TEST_DATA, person))
+    crop_names = list(map(lambda x: os.path.join(TEST_DATA, person, x), crop_names)) 
+    crops = [cv2.imread(x , cv2.IMREAD_GRAYSCALE) for x in crop_names ]
     
         
-            
-#%% Train SVM
- 
-print("Training SVM")
-svmModel = svm.SVC()
-svmModel.fit(sift_feature_vec[0], sift_feature_vec[1])
+    # get SIFT Features
+    sift_desc = extractFeatures(crops, getSIFTfeatures)
+    sift_histograms = generateHistograms(sift_desc)
+    sift_test_feature_vec[0].extend(sift_histograms)
+    sift_test_feature_vec[1].extend([person] * len(sift_histograms))
+    
+    # get SURF Features
+    surf_desc = extractFeatures(crops, getSURFfeatures)
+    surf_histograms = generateHistograms(surf_desc)
+    surf_test_feature_vec[0].extend(surf_histograms)
+    surf_test_feature_vec[1].extend([person] * len(surf_histograms))
+    
+    # get ORB Features
+    orb_desc = extractFeatures(crops, getORBfeatures)
+    orb_histograms = generateHistograms(orb_desc)
+    orb_test_feature_vec[0].extend(orb_histograms)
+    orb_test_feature_vec[1].extend([person] * len(orb_histograms))
+    
 
-
-#%% Train MLP
-
-print("Training MLP")
-mlp = MLPClassifier(verbose=True, max_iter=6000)
-mlp.fit(sift_feature_vec[0], sift_feature_vec[1])
-
+    
+##%% Train SVM
+# 
+#print("Training SVM")
+#svmModel = svm.SVC(gamma = 'auto')
+#svmModel.fit(sift_train_feature_vec[0], sift_train_feature_vec[1])
+#
+#
+##%% Train MLP
+#
+#print("Training MLP")
+#mlpModel = MLPClassifier(verbose=True, max_iter=6000)
+#mlpModel.fit(sift_train_feature_vec[0], sift_train_feature_vec[1])
+#
+#
+##%% Predict on Test (SVM)
+#svmPreds = svmModel.predict(sift_test_feature_vec[0])
+#svmCM = confusion_matrix(sift_test_feature_vec[1], svmPreds)
+#
+#
+##%% Predict on Test (MLP)
+#
+#mlpPreds = mlpModel.predict(sift_test_feature_vec[0])
+#mlpCM = confusion_matrix(sift_test_feature_vec[1], mlpPreds)
 
 
 
