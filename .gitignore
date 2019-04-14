@@ -8,3 +8,6 @@ preProcessing.m~
 cropped/
 IMG_20190128_201734.jpg
 IMG_20190128_201734.mp4
+frozen_east_text_detection.pb 
+frozen_east_text_detection.tar.gz
+*.log
