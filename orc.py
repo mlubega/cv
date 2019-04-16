@@ -12,8 +12,8 @@ import pytesseract
 import imutils
 
 
-
-img_path = "./IMG_20190128_201734.jpg"
+img_path = "IMG_3542.jpeg"
+#img_path = "./IMG_20190128_201734.jpg"
 vid_path = "./IMG_20190128_201734.mp4"
 east_dect = "./frozen_east_text_detection.pb"
 
@@ -37,6 +37,8 @@ cv2.resizeWindow('hunk', 600,600)
 #thresh =np.hstack((graythresh, valuethresh))
 #th = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 301, 10)
 
+
+#color thresholding
 lower = np.array([200,200,200])
 upper = np.array([255,255,255])
 
@@ -44,12 +46,19 @@ mask = cv2.inRange(img, lower, upper)
 res = cv2.bitwise_and(img,img, mask= mask)
 
 
+#opening to remove noise
 kernel = np.ones((100,100),np.uint8)
 opening = cv2.morphologyEx(res, cv2.MORPH_OPEN, kernel)
 
-two = np.hstack((res, opening))
-cv2.imshow('hunk',two)
+gray = cv2.cvtColor(opening, cv2.COLOR_RGB2GRAY)
+contours, hierarchy = cv2.findContours(gray, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+c_img = cv2.drawContours(img, contours, -1, (0,255,0), 3)
 
+
+
+#two = np.hstack((res, opening))
+
+cv2.imshow('hunk',c_img)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
 
