@@ -14,18 +14,17 @@ from sklearn.cluster import MiniBatchKMeans
 from sklearn.neural_network import MLPClassifier
 from sklearn import svm
 from sklearn.metrics import confusion_matrix 
-
+from sklearn.metrics import accuracy_score
 
 #%% Global Vars
 
-TRAIN_DATA = '/home/aries/ds_course/term2/compv/coursework/cropped/train/'
-TEST_DATA  = '/home/aries/ds_course/term2/compv/coursework/cropped/test/'
+TRAIN_DATA = '/home/aries/ds_course/term2/compv/coursework/test_crops/train/'
+TEST_DATA  = '/home/aries/ds_course/term2/compv/coursework/test_crops/test/'
 
-f = "IMG_20190128_201734.jpg"
-g = "IMG_20190128_201734.mp4"
 
-NUM_CLASSES = 3
-K = NUM_CLASSES * 10  # KMeans Classes
+
+NUM_CLASSES = len(os.listdir(TRAIN_DATA))
+K = NUM_CLASSES * 5  # KMeans Classes
 
 #%% Helper Functions
 
@@ -67,14 +66,14 @@ def extractFeatures(crop_list, featureFunc):
     for i in range(0, len(crop_list)):
        # gray = cv2.cvtColor(crop_list[i], cv2.COLOR_BGR2GRAY)
         kp, desc = featureFunc(crop_list[i])
-        descriptors[i] = desc
+        if type(desc) != type(None):
+            descriptors[i] = desc
         
     return descriptors
 
 
-
-def generateHistograms(descriptors):
-    
+def trainKMeans(descriptors):
+     
     des = list(descriptors.values())
     desc_matrix = reduce(lambda x,y: np.concatenate((x,y)), des)
 
@@ -82,12 +81,18 @@ def generateHistograms(descriptors):
     initial_size = 3 * K
     batch_size = len(descriptors.keys()) * 3  # What's a good metric to determine this number? 
     kmeans = MiniBatchKMeans(n_clusters=K, batch_size=batch_size, init_size=initial_size, verbose=0).fit(desc_matrix)
-    #print("Finished K-Means")
+    
+    return kmeans
+    
+    
+
+
+def generateHistograms(descriptors, kmeans_centers):
     
     ## Generate Histogram 
     histograms = []
     for i, desc in descriptors.items(): 
-        preds = kmeans.predict(desc)
+        preds = kmeans_centers.predict(desc)
         hist, bin_edges=np.histogram(preds, bins=range(0, K)) # Normalize by number of keypoints?? 
         histograms.append(hist)
     
@@ -97,13 +102,16 @@ def generateHistograms(descriptors):
 #%% Final Feature Vectors
 
 sift_train_feature_vec = [[], []]   
-sift_test_feature_vec = [[], []]   
+sift_test_feature_vec = [[], []]  
+sift_kmeans = {} 
 
 surf_train_feature_vec = [[], []]   
-surf_test_feature_vec = [[], []]   
+surf_test_feature_vec = [[], []]  
+surf_kmeans = {} 
 
 orb_train_feature_vec = [[], []]   
 orb_test_feature_vec = [[], []]   
+orb_kmeans = {}
 
 #%% Process each folder    
 
@@ -124,22 +132,26 @@ for person in people:
         
     # get SIFT Features
     sift_desc = extractFeatures(crops, getSIFTfeatures)
-    sift_histograms = generateHistograms(sift_desc)
+    sift_kmeans[person] = trainKMeans(sift_desc)
+    sift_histograms = generateHistograms(sift_desc, sift_kmeans[person])
     sift_train_feature_vec[0].extend(sift_histograms)
     sift_train_feature_vec[1].extend([person] * len(sift_histograms))
-    
+    print("Extracted SIFT")
     # get SURF Features
     surf_desc = extractFeatures(crops, getSURFfeatures)
-    surf_histograms = generateHistograms(surf_desc)
+    surf_kmeans[person] = trainKMeans(surf_desc)
+    surf_histograms = generateHistograms(surf_desc, surf_kmeans[person])
     surf_train_feature_vec[0].extend(surf_histograms)
     surf_train_feature_vec[1].extend([person] * len(surf_histograms))
-    
+    print("Extracted SURF")
     
     # get ORB Features
     orb_desc = extractFeatures(crops, getORBfeatures)
-    orb_histograms = generateHistograms(orb_desc)
+    orb_kmeans[person] = trainKMeans(orb_desc)
+    orb_histograms = generateHistograms(orb_desc, orb_kmeans[person])
     orb_train_feature_vec[0].extend(orb_histograms)
     orb_train_feature_vec[1].extend([person] * len(orb_histograms))
+    print("Extracted ORB")
     
     
     
@@ -159,48 +171,52 @@ for person in people:
         
     # get SIFT Features
     sift_desc = extractFeatures(crops, getSIFTfeatures)
-    sift_histograms = generateHistograms(sift_desc)
+    sift_histograms = generateHistograms(sift_desc, sift_kmeans[person])
     sift_test_feature_vec[0].extend(sift_histograms)
     sift_test_feature_vec[1].extend([person] * len(sift_histograms))
+    print("Extracted SIFT")
     
     # get SURF Features
     surf_desc = extractFeatures(crops, getSURFfeatures)
-    surf_histograms = generateHistograms(surf_desc)
+    surf_histograms = generateHistograms(surf_desc, surf_kmeans[person])
     surf_test_feature_vec[0].extend(surf_histograms)
     surf_test_feature_vec[1].extend([person] * len(surf_histograms))
+    print("Extracted SURF")
     
     # get ORB Features
     orb_desc = extractFeatures(crops, getORBfeatures)
-    orb_histograms = generateHistograms(orb_desc)
+    orb_histograms = generateHistograms(orb_desc, orb_kmeans[person])
     orb_test_feature_vec[0].extend(orb_histograms)
     orb_test_feature_vec[1].extend([person] * len(orb_histograms))
+    print("Extracted ORB")
     
 
     
-##%% Train SVM
-# 
-#print("Training SVM")
-#svmModel = svm.SVC(gamma = 'auto')
-#svmModel.fit(sift_train_feature_vec[0], sift_train_feature_vec[1])
-#
-#
-##%% Train MLP
-#
-#print("Training MLP")
-#mlpModel = MLPClassifier(verbose=True, max_iter=6000)
-#mlpModel.fit(sift_train_feature_vec[0], sift_train_feature_vec[1])
+#%% Train SVM
+ 
+print("Training SVM")
+svmModel = svm.SVC(gamma = 'auto')
+svmModel.fit(sift_train_feature_vec[0], sift_train_feature_vec[1])
+
+
+#%% Train MLP
+
+print("Training MLP")
+mlpModel = MLPClassifier(verbose=False, max_iter=6000)
+mlpModel.fit(sift_train_feature_vec[0], sift_train_feature_vec[1])
 #
 #
 ##%% Predict on Test (SVM)
-#svmPreds = svmModel.predict(sift_test_feature_vec[0])
-#svmCM = confusion_matrix(sift_test_feature_vec[1], svmPreds)
-#
-#
-##%% Predict on Test (MLP)
-#
-#mlpPreds = mlpModel.predict(sift_test_feature_vec[0])
-#mlpCM = confusion_matrix(sift_test_feature_vec[1], mlpPreds)
+svmPreds = svmModel.predict(sift_test_feature_vec[0])
+svmScore = accuracy_score(sift_test_feature_vec[1], svmPreds)
+print("SVM Score:", svmScore)
 
+
+#%% Predict on Test (MLP)
+
+mlpPreds = mlpModel.predict(sift_test_feature_vec[0])
+mlpScore = accuracy_score(sift_test_feature_vec[1], mlpPreds)
+print("MLP Score:", mlpScore)
 
 
      
