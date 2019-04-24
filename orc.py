@@ -10,6 +10,8 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import pytesseract
+import imutils
+import sys
 
 #img_path = "sophie_side.jpeg"
 #img_path = "jack_side.jpeg"# --> not so good
@@ -17,9 +19,12 @@ import pytesseract
 #img_path = "sepher.jpg"#
 
 #img_path = "./IMG_3546.jpeg"
+#img_path = "./IMG_3323.jpg"   #Eijaz
 #img_path = "./IMG_3542.jpeg"
-img_path = "./IMG_20190128_201734.jpg"
-#vid_path = "./IMG_20190128_201734.mp4"
+#img_path = "./IMG_20190128_201734.jpg"
+vid_path = "./IMG_20190128_201734.mp4"
+#img_path = "./IMG_20190128_202452.jpg"  # Juan
+#vid_path = './IMG_3542.mov'
 
 
 
@@ -31,18 +36,59 @@ def showImage(img):
     cv2.destroyAllWindows()
 
 
-img =  cv2.imread(img_path)
-print(img.shape)
+
+cap = cv2.VideoCapture(vid_path)
+             
+if not cap.isOpened:
+   sys.exit('Cap Not Open')
+                
+total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+print("Total frames:",total_frames)
+
+pic_found = 0 
+
+for i in range(total_frames):
+    hasframe, frame = cap.read()
+    
+    if not hasframe:
+        continue;
+        
+    if vid_path.endswith('.mov'):
+        frame = imutils.rotate_bound(frame, 90)
+        
+    pic_found = frame
+    break;
+
+img = pic_found
+
+#%% set mser size
+
+#img =  cv2.imread(img_path)
+img_height, img_width = img.shape[:2]
+img_area = float(img_height) * img_width
+max_num_area = int(img_area * 0.004)
+kernel_edge = int(np.sqrt(max_num_area / 2))
+
+print("Shape:", img.shape)
+print("Area:", img_area)
+print("Calculated MSER area:",max_num_area)
+print("Calculated Kernel:",kernel_edge)
+
+
 
 #%% Threshold
 gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-retval, graythresh = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+retval, graythresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 #showImage(graythresh)
+#plt.imshow(graythresh)
+#plt.show()
 
 
 #%% Opening
-kernel = np.ones((100,100),np.uint8)
+kernel = np.ones((kernel_edge,kernel_edge),np.uint8)
 opening = cv2.morphologyEx(graythresh, cv2.MORPH_OPEN, kernel)
+#plt.imshow(opening)
+#plt.show()
 
 
 #showImage(opening)
@@ -51,18 +97,27 @@ opening = cv2.morphologyEx(graythresh, cv2.MORPH_OPEN, kernel)
 rois = []
 
 vis = img.copy()
-mser = cv2.MSER_create(_delta=10, _max_area=16000, _max_variation=0.1)
+mser = cv2.MSER_create(_delta=10, _max_area=max_num_area, _max_variation=0.5)
 regions, _ = mser.detectRegions(opening)
 for p in regions:
     xmax, ymax = np.amax(p, axis=0)
     xmin, ymin = np.amin(p, axis=0)
-    xmax, ymax = xmax + 30, ymax + 30
-    xmin, ymin = xmin - 30, ymin - 30
-    rois.append(vis[ymin:ymax, xmin:xmax])
-    #cv2.rectangle(vis, (xmin,ymax), (xmax,ymin), (0, 255, 0), 4)
+    
+    
+    xmax = min(xmax + 30, img_width )
+    ymax = min(ymax + 30, img_height)
+    xmin = max(xmin - 30, 1)
+    ymin = max(ymin - 30, 1)
+
+
+    rois.append(img[ymin:ymax, xmin:xmax])
+    cv2.rectangle(vis, (xmin,ymax), (xmax,ymin), (0, 255, 0), 1)
 
   
-#showImage(vis)
+showImage(vis)
+#plt.imshow(vis)
+#plt.show()
+
 print(len(rois), "possible images")
 
 #%% filtering by histogram
@@ -91,6 +146,11 @@ for img in rois:
       best_pct = bimodal_pct
 
 
+
+if best_roi is None:
+    sys.exit("No num detected")
+
+print("BEST ROI")
 plt.imshow(best_roi)
 plt.show()
 
@@ -146,7 +206,8 @@ plt.show()
 
 
 
-config = ("-l eng --oem 1 --psm 7 outputbase digits")
+config = ("-l eng --oem 1 --psm 6  outputbase digits")
+#config = ("-l eng --oem 1 --psm 6 -c tessedit_char_whitelist=-:0123456789")
 text = pytesseract.image_to_string(thresh1, config=config) 
 print(text)
 
