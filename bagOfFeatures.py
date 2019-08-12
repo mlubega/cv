@@ -257,15 +257,5 @@ print("MLP Score:", mlpScore)
 
 
      
-# =============================================================================
-# sources consulted : 
-#
-# https://www.superdatascience.com/blogs/opencv-face-detection
-# https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_feature2d/py_orb/py_orb.html
-# https://docs.opencv.org/3.4/df/dd2/tutorial_py_surf_intro.html
-# https://ianlondon.github.io/blog/how-to-sift-opencv/
-# https://www.kaggle.com/pierre54/bag-of-words-model-with-sift-descriptors/notebook
-# https://stackoverflow.com/questions/51168896/bag-of-visual-words-implementation-in-python-is-giving-terrible-accuracy
-# =============================================================================
 
 
